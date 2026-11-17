@@ -3513,7 +3513,11 @@ function serializeTypedArray(
   request.pendingChunks++;
   const bufferId = request.nextChunkId++;
   emitTypedArrayChunk(request, bufferId, tag, typedArray, false);
-  return serializeByValueID(bufferId);
+  const reference = serializeByValueID(bufferId);
+  // A destination may transfer the bytes rather than copy them, which detaches
+  // the buffer, so any other place that holds the value refers to this row.
+  request.writtenObjects.set(typedArray, reference);
+  return reference;
 }
 
 function serializeDebugTypedArray(
@@ -4150,7 +4154,13 @@ function renderModelDestructive(
       return serializeErrorValue(request, value);
     }
     if (value instanceof ArrayBuffer) {
-      return serializeTypedArray(request, 'A', new Uint8Array(value));
+      const reference = serializeTypedArray(
+        request,
+        'A',
+        new Uint8Array(value),
+      );
+      request.writtenObjects.set(value, reference);
+      return reference;
     }
     if (value instanceof Int8Array) {
       // char
